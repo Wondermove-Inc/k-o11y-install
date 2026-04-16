@@ -1,0 +1,12 @@
+You have just deployed k8s-infra chart:
+
+- otel-agent version: '{{ .Values.otelAgent.image.tag }}'
+- otel-deployment version: '{{ .Values.otelDeployment.image.tag }}'
+
+{{- if not .Values.otelAgent.configMap.create }}
+[WARNING] otel-agent "configMap" will not be created and "otelAgent.config" will not take effect.
+{{ end }}
+
+{{- if not .Values.otelDeployment.configMap.create }}
+[WARNING] otel-deployment "configMap" will not be created and "otelDeployment.config" will not take effect.
+{{ end }}

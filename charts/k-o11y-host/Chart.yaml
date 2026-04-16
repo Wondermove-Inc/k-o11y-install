@@ -1,0 +1,32 @@
+apiVersion: v2
+appVersion: v0.93.0
+dependencies: []
+description: K-O11y Host Platform (based on SigNoz)
+home: https://signoz.io/
+icon: https://signoz.io/img/SigNozLogo-orange.svg
+keywords:
+- k-o11y
+- observability
+- SigNoz
+- opentelemetry
+- apm
+- monitoring
+- distributed tracing
+- distributed logging
+maintainers:
+- email: hello@signoz.io
+  name: SigNoz
+  url: https://signoz.io
+- email: prashant@signoz.io
+  name: prashant-shahi
+  url: https://prashantshahi.dev
+name: k-o11y-host
+sources:
+- https://github.com/signoz/charts
+- https://github.com/signoz/signoz
+- https://github.com/signoz/signoz-otel-collector
+type: application
+version: 26.2.1
+annotations:
+  upstream/chart: signoz/signoz
+  upstream/version: "0.90.1"

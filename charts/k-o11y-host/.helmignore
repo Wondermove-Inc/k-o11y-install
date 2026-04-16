@@ -1,0 +1,8 @@
+.DS_Store
+.git
+.gitignore
+.claude
+.claude-state
+*.tgz
+tmpcharts*
+README.md.gotmpl

@@ -1,0 +1,238 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "signoz.fullname" . }}
+  labels:
+    {{- include "signoz.labels" . | nindent 4 }}
+  {{- if .Values.o11yHub.annotations }}
+  annotations:
+    {{- toYaml .Values.o11yHub.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  serviceName: {{ include "signoz.fullname" . }}
+  replicas: {{ .Values.o11yHub.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "signoz.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- if .Values.o11yHub.podAnnotations }}
+      annotations:
+        {{- toYaml .Values.o11yHub.podAnnotations | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "signoz.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.o11yHub.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range . }}
+        - name: {{ . | quote }}
+      {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "signoz.serviceAccountName" . }}
+      priorityClassName: {{ .Values.o11yHub.priorityClassName | quote }}
+      {{- with .Values.o11yHub.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.o11yHub.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.o11yHub.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.o11yHub.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.o11yHub.podSecurityContext | nindent 8 }}
+      {{- with .Values.o11yHub.initContainers }}
+      initContainers:
+        {{- if .init.enabled }}
+        - name: {{ include "signoz.fullname" $ }}-init
+          image: {{ include "signoz.initContainers.init.image" $ }}
+          imagePullPolicy: {{ .init.image.pullPolicy }}
+          env:
+            {{- include "snippet.clickhouse-credentials" $ | nindent 12 }}
+          {{- with .init.command }}
+          command:
+            - sh
+            - -c
+            - until wget --user "${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}" --spider -q {{ include "clickhouse.httpUrl" $ }}{{ .endpoint }}; do echo -e "{{ .waitMessage }}"; sleep {{ .delay }}; done; echo -e "{{ .doneMessage }}";
+          {{- end }}
+          resources:
+            {{- toYaml .init.resources | nindent 12 }}
+        {{- end }}
+        {{- if .migration.enabled }}
+        - name: {{ include "signoz.fullname" $ }}-migration
+          image: {{ include "signoz.initContainers.migration.image" $ }}
+          imagePullPolicy: {{ .migration.image.pullPolicy }}
+          env:
+            {{- include "snippet.clickhouse-credentials" $ | nindent 12 }}
+          {{- if .migration.args }}
+          args:
+            {{- toYaml .migration.args | nindent 12 }}
+          {{- end }}
+          {{- if .migration.command }}
+          command:
+            {{- toYaml .migration.command | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .migration.resources | nindent 12 }}
+          volumeMounts:
+          {{- if $.Values.o11yHub.persistence.enabled }}
+          {{- if $.Values.o11yHub.persistence.existingClaim }}
+            - name: signoz-db-existing-claim
+          {{- else }}
+            - name: signoz-db
+          {{- end }}
+          {{- else }}
+            - name: signoz-db-volume
+          {{- end }}
+              mountPath: /var/lib/signoz
+          {{- if .migration.additionalVolumeMounts }}
+            {{- toYaml .migration.additionalVolumeMounts | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: signoz
+          securityContext:
+            {{- toYaml .Values.o11yHub.securityContext | nindent 12 }}
+          image: {{ template "signoz.image" . }}
+          imagePullPolicy: {{ .Values.o11yHub.image.pullPolicy }}
+          args:
+            {{- range .Values.o11yHub.additionalArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ default 8080  .Values.o11yHub.service.port }}
+              protocol: TCP
+            - name: http-internal
+              containerPort: {{ default 8085 .Values.o11yHub.service.internalPort }}
+              protocol: TCP
+            - name: opamp-internal
+              containerPort: {{ default 4320 .Values.o11yHub.service.opampPort }}
+              protocol: TCP
+          env:
+            {{- include "snippet.clickhouse-credentials" . | nindent 12 }}
+            {{- include "signoz.env" . | nindent 12 }}
+            {{- if .Values.o11yHub.sso.enabled }}
+            - name: K_O11Y_SSO_ENABLED
+              value: "true"
+            - name: K_O11Y_JWT_PUBLIC_KEY
+              value: {{ .Values.o11yHub.sso.jwtPublicKey | trim | quote }}
+            - name: K_O11Y_JWT_ISSUER
+              value: {{ .Values.o11yHub.sso.jwtIssuer | quote }}
+            - name: K_O11Y_DEFAULT_ROLE
+              value: {{ .Values.o11yHub.sso.defaultRole | quote }}
+            - name: K_O11Y_ALLOWED_TENANTS
+              value: {{ .Values.o11yHub.sso.allowedTenants | quote }}
+            {{- end }}
+            {{- range $key, $val := .Values.o11yHub.additionalEnvs }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          {{- if .Values.o11yHub.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.o11yHub.livenessProbe.port }}
+              path: {{ .Values.o11yHub.livenessProbe.path }}
+            initialDelaySeconds: {{ .Values.o11yHub.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.o11yHub.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.o11yHub.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.o11yHub.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.o11yHub.livenessProbe.failureThreshold }}
+          {{- else if .Values.o11yHub.customLivenessProbe }}
+          livenessProbe: {{- toYaml .Values.o11yHub.customLivenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.o11yHub.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.o11yHub.readinessProbe.port }}
+              path: {{ .Values.o11yHub.readinessProbe.path }}
+            initialDelaySeconds: {{ .Values.o11yHub.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.o11yHub.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.o11yHub.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.o11yHub.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.o11yHub.readinessProbe.failureThreshold }}
+          {{- else if .Values.o11yHub.customReadinessProbe }}
+          readinessProbe: {{- toYaml .Values.o11yHub.customReadinessProbe | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          {{- if .Values.o11yHub.persistence.enabled }}
+          {{- if .Values.o11yHub.persistence.existingClaim }}
+            - name: signoz-db-existing-claim
+          {{- else }}
+            - name: signoz-db
+          {{- end }}
+          {{- else }}
+            - name: signoz-db-volume
+          {{- end }}
+              mountPath: /var/lib/signoz/
+          {{- if .Values.o11yHub.additionalVolumeMounts }}
+            {{- toYaml .Values.o11yHub.additionalVolumeMounts | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.o11yHub.resources | nindent 12 }}
+        {{- if .Values.o11yHub.nginxProxy.enabled }}
+        - name: nginx-proxy
+          image: "{{- if .Values.o11yHub.nginxProxy.image.registry -}}{{ .Values.o11yHub.nginxProxy.image.registry }}/{{- end -}}{{ .Values.o11yHub.nginxProxy.image.repository }}:{{ .Values.o11yHub.nginxProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.o11yHub.nginxProxy.image.pullPolicy }}
+          ports:
+            - name: http-proxy
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          resources:
+            {{- toYaml .Values.o11yHub.nginxProxy.resources | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: dashboards
+          emptyDir: {}
+        {{- if (not .Values.o11yHub.persistence.enabled) }}
+        - name: signoz-db-volume
+          emptyDir: {}
+        {{- else if .Values.o11yHub.persistence.existingClaim }}
+        - name: signoz-db-existing-claim
+          persistentVolumeClaim:
+            claimName: {{ .Values.o11yHub.persistence.existingClaim }}
+        {{- end }}
+        {{- if .Values.o11yHub.additionalVolumes }}
+          {{- toYaml .Values.o11yHub.additionalVolumes | nindent 8 }}
+        {{- end }}
+        {{- if .Values.o11yHub.nginxProxy.enabled }}
+        - name: nginx-config
+          configMap:
+            name: o11y-nginx-proxy-config
+        {{- end }}
+        {{- if .Values.o11yHub.initContainers.migration.additionalVolumes }}
+          {{- toYaml .Values.o11yHub.initContainers.migration.additionalVolumes | nindent 8 }}
+        {{- end }}
+
+{{- if and (.Values.o11yHub.persistence.enabled) (not .Values.o11yHub.persistence.existingClaim) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: signoz-db
+      spec:
+        accessModes:
+          {{- toYaml .Values.o11yHub.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.o11yHub.persistence.size }}
+      {{- $storageClass := default .Values.o11yHub.persistence.storageClass .Values.global.storageClass -}}
+      {{- if $storageClass -}}
+      {{- if (eq "-" $storageClass) }}
+        storageClassName: ""
+      {{- else }}
+        storageClassName: {{ $storageClass }}
+      {{- end }}
+      {{- end }}
+{{- end }}

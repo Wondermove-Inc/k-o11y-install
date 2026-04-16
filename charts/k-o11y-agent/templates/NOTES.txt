@@ -1,0 +1,81 @@
+========================================================================
+  K-O11y Agent Stack
+========================================================================
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Chart:     {{ .Chart.Name }}-{{ .Chart.Version }}
+
+------------------------------------------------------------------------
+  Installed Components:
+------------------------------------------------------------------------
+
+{{- if index .Values "otelAgent" "enabled" }}
+  [v] OTel Collector Agent (DaemonSet + Deployment)
+{{- else }}
+  [ ] OTel Collector Agent (disabled)
+{{- end }}
+
+{{- if index .Values "apmAgent" "enabled" }}
+  [v] K-O11y APM Agent (DaemonSet)
+{{- else }}
+  [ ] K-O11y APM Agent (disabled)
+{{- end }}
+
+{{- if index .Values "ksm" "enabled" }}
+  [v] Kube State Metrics (Deployment)
+{{- else }}
+  [ ] Kube State Metrics (disabled)
+{{- end }}
+
+{{- if index .Values "otelOperator" "enabled" }}
+  [v] OpenTelemetry Operator (Deployment)
+{{- else }}
+  [ ] OpenTelemetry Operator (disabled)
+{{- end }}
+
+{{- if .Values.instrumentation.enabled }}
+  [v] Instrumentation CRD (auto-instrumentation)
+  {{- if .Values.instrumentation.java.enabled }}    - Java (gRPC){{ end }}
+  {{- if .Values.instrumentation.dotnet.enabled }}    - .NET (HTTP/Protobuf){{ end }}
+  {{- if .Values.instrumentation.python.enabled }}    - Python (HTTP/Protobuf){{ end }}
+  {{- if .Values.instrumentation.nodejs.enabled }}    - Node.js (gRPC){{ end }}
+  {{- if .Values.instrumentation.go.enabled }}    - Go (eBPF){{ end }}
+{{- else }}
+  [ ] Instrumentation CRD (disabled)
+{{- end }}
+
+------------------------------------------------------------------------
+  Configuration:
+------------------------------------------------------------------------
+
+  Cluster Name:  {{ .Values.global.clusterName | default "(not set)" }}
+  Environment:   {{ .Values.global.deploymentEnvironment | default "(not set)" }}
+  OTel Endpoint: {{ index .Values "k-o11y-otel-agent" "otelCollectorEndpoint" | default "(not set)" }}
+  OTel Insecure: {{ .Values.global.otelInsecure }}
+
+{{- if .Values.instrumentation.enabled }}
+------------------------------------------------------------------------
+  Auto-Instrumentation Usage:
+------------------------------------------------------------------------
+
+  Annotate your Deployments to enable auto-instrumentation:
+
+  Java:   kubectl annotate deployment <name> instrumentation.opentelemetry.io/inject-java={{ .Values.instrumentation.name }} -n <namespace>
+  .NET:   kubectl annotate deployment <name> instrumentation.opentelemetry.io/inject-dotnet={{ .Values.instrumentation.name }} -n <namespace>
+  Python: kubectl annotate deployment <name> instrumentation.opentelemetry.io/inject-python={{ .Values.instrumentation.name }} -n <namespace>
+  Node:   kubectl annotate deployment <name> instrumentation.opentelemetry.io/inject-nodejs={{ .Values.instrumentation.name }} -n <namespace>
+  Go:     kubectl annotate deployment <name> instrumentation.opentelemetry.io/inject-go={{ .Values.instrumentation.name }} -n <namespace>
+{{- end }}
+
+------------------------------------------------------------------------
+  Verify Installation:
+------------------------------------------------------------------------
+
+  kubectl get pods -n {{ .Release.Namespace }}
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- if .Values.instrumentation.enabled }}
+  kubectl get instrumentation -n {{ .Release.Namespace }}
+{{- end }}
+
+========================================================================

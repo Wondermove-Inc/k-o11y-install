@@ -1,0 +1,127 @@
+receivers:
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      load: {}
+      disk:
+        exclude:
+          devices:
+            - "^ram\\d+$"
+            - "^zram\\d+$"
+            - "^loop\\d+$"
+            - "^fd\\d+$"
+          match_type: regexp
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+        include_mount_points:
+          mount_points:
+            - /
+            - /var/lib/clickhouse
+          match_type: strict
+        exclude_fs_types:
+          fs_types:
+            - autofs
+            - binfmt_misc
+            - cgroup2
+            - configfs
+            - debugfs
+            - devpts
+            - devtmpfs
+            - fusectl
+            - hugetlbfs
+            - iso9660
+            - mqueue
+            - nsfs
+            - overlay
+            - proc
+            - procfs
+            - pstore
+            - rpc_pipefs
+            - securityfs
+            - selinuxfs
+            - squashfs
+            - sysfs
+            - tracefs
+            - tmpfs
+          match_type: strict
+      network:
+        exclude:
+          interfaces:
+            - "^lo$"
+            - "^veth.*"
+            - "^docker.*"
+            - "^br-.*"
+          match_type: regexp
+
+  prometheus/clickhouse:
+    config:
+      scrape_configs:
+        - job_name: clickhouse
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['localhost:9363']
+
+processors:
+  resourcedetection:
+    detectors: [env, system]
+    system:
+      hostname_sources: [os]
+      resource_attributes:
+        host.id:
+          enabled: true
+
+  resource:
+    attributes:
+      - key: service.name
+        value: k-o11y-clickhouse
+        action: upsert
+      - key: deployment.environment
+        value: "{{.Environment}}"
+        action: upsert
+
+  batch:
+    send_batch_size: 1000
+    send_batch_max_size: 2000
+    timeout: 200ms
+
+exporters:
+  otlp:
+    endpoint: "{{.OtelEndpoint}}"
+    compression: gzip
+    tls:
+{{- if .OtelTLS}}
+      insecure: false
+{{- if .OtelTLSSkipVerify}}
+      insecure_skip_verify: true
+{{- end}}
+{{- else}}
+      insecure: true
+{{- end}}
+    timeout: 120s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 2s
+      max_interval: 10s
+      max_elapsed_time: 60s
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [hostmetrics, prometheus/clickhouse]
+      processors: [resourcedetection, resource, batch]
+      exporters: [otlp]

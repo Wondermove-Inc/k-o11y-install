@@ -1,0 +1,15 @@
+K-O11y
+Copyright 2024 Wondermove Inc.
+
+This project is forked from SigNoz (https://github.com/SigNoz/signoz),
+licensed under the MIT License. Copyright (c) 2020-present SigNoz Inc.
+
+Wondermove's custom extensions include:
+- S3 3-Tier Storage Tiering (Hot/Warm/Cold)
+- SSO Tenant Auto-Lock
+- S3 Credential Management (AES-256-GCM)
+- ServiceMap enhancements
+- Data Lifecycle Configuration
+- Usage Reporter
+
+These extensions are also released under the MIT License.

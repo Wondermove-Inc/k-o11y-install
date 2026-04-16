@@ -1,0 +1,230 @@
+# Upstream Version Tracking
+# This file tracks the original upstream chart versions and their corresponding images.
+# Used for version management and upstream sync automation.
+
+harbor:
+  registry: <YOUR_REGISTRY>
+  charts_project: charts
+  images_project: observability
+
+charts:
+  # ============================================
+  # Host Cluster Chart
+  # ============================================
+  k-o11y:
+    upstream_chart: signoz/signoz
+    upstream_version: "0.90.1"
+    app_version: "v0.93.0"
+    our_version: "26.1.1"
+    last_synced: "2025-01-20"
+    harbor_path: oci://<YOUR_REGISTRY>/charts/k-o11y
+    install_location: host
+    images:
+      # All images mirrored and values.yaml updated (2025-01-20)
+      - source: docker.io/signoz/signoz-otel-collector:v0.129.2
+        target: <YOUR_REGISTRY>/observability/k-o11y-otel-collector:v0.129.2
+        status: completed
+        note: "Base image for patching"
+      - source: docker.io/signoz/signoz-schema-migrator:v0.129.2
+        target: <YOUR_REGISTRY>/observability/k-o11y-schema-migrator:v0.129.2
+        status: completed
+    patched_images:
+      # Custom patched images (upstream bug fix backport)
+      - target: <YOUR_REGISTRY>/observability/k-o11y-otel-collector:v0.129.2.1
+        base: v0.129.2
+        patch_repo: https://github.com/Wondermove-Inc/k-o11y-signoz-otelcol
+        patch_tag: v0.129.2.1
+        fix: "logs_resource_keys INSERT bug (PR #679 backport)"
+        status: active
+      - source: docker.io/clickhouse/clickhouse-server:24.1.2-alpine
+        target: <YOUR_REGISTRY>/observability/k-o11y-clickhouse-server:24.1.2-alpine
+        status: completed
+      - source: docker.io/altinity/clickhouse-operator:0.21.2
+        target: <YOUR_REGISTRY>/observability/k-o11y-clickhouse-operator:0.21.2
+        status: completed
+      - source: docker.io/altinity/metrics-exporter:0.21.2
+        target: <YOUR_REGISTRY>/observability/k-o11y-metrics-exporter:0.21.2
+        status: completed
+      - source: docker.io/signoz/zookeeper:3.7.1
+        target: <YOUR_REGISTRY>/observability/k-o11y-zookeeper:3.7.1
+        status: completed
+      - source: docker.io/alpine:3.18.2
+        target: <YOUR_REGISTRY>/observability/k-o11y-alpine:3.18.2
+        status: completed
+      - source: docker.io/busybox:1.35
+        target: <YOUR_REGISTRY>/observability/k-o11y-busybox:1.35
+        status: completed
+      - source: docker.io/groundnuty/k8s-wait-for:v2.0
+        target: <YOUR_REGISTRY>/observability/k-o11y-k8s-wait-for:v2.0
+        status: completed
+    excluded_images:
+      - source: docker.io/signoz/signoz:v0.93.0
+        reason: "Custom SigNoz used (<YOUR_REGISTRY>/observability/hub)"
+      - source: docker.io/signoz/signoz-otel-gateway
+        reason: "Disabled (enabled: false)"
+      - source: docker.io/bitnami/postgresql
+        reason: "Disabled (signoz-otel-gateway dependency)"
+      - source: docker.redpanda.com/redpandadata/redpanda
+        reason: "Disabled (not rendered in helm template)"
+    changes:
+      - "Chart.yaml name changed to k-o11y"
+      - "fullnameOverride: k-o11y"
+      - "otelCollector.name: otel-collector-gw"
+      - "Image registry changed to Harbor"
+
+  # ============================================
+  # Agent Cluster Charts
+  # ============================================
+  k-o11y-otel-agent:
+    upstream_chart: signoz/k8s-infra
+    upstream_version: "0.15.0"
+    app_version: "0.139.0"
+    our_version: "26.1.1"
+    last_synced: "2025-01-20"
+    harbor_path: oci://<YOUR_REGISTRY>/charts/k-o11y-otel-agent
+    install_location: agent
+    images:
+      - source: docker.io/otel/opentelemetry-collector-contrib:0.109.0
+        target: <YOUR_REGISTRY>/observability/k-o11y-otel-collector-contrib:0.109.0
+        status: completed
+      - source: docker.io/library/busybox:1.35
+        target: <YOUR_REGISTRY>/observability/busybox:1.35
+        status: completed
+        note: "helm test pod, default fallback changed to private registry (2026-02-23)"
+    changes:
+      - "Chart.yaml name changed to k-o11y-otel-agent"
+      - "Image registry changed to Harbor"
+      - "test-connection.yaml default registry changed from docker.io to <YOUR_REGISTRY>/observability (2026-02-23)"
+
+  k-o11y-apm-agent:
+    upstream_chart: grafana/beyla
+    upstream_version: "1.10.4"
+    app_version: "2.8.4"
+    our_version: "26.1.1"
+    last_synced: "2025-01-20"
+    harbor_path: oci://<YOUR_REGISTRY>/charts/k-o11y-apm-agent
+    install_location: agent
+    note: "Image tag 2.5.8 is explicitly set in install script for stability"
+    images:
+      - source: docker.io/grafana/beyla:2.5.8
+        target: <YOUR_REGISTRY>/observability/k-o11y-apm-agent:2.5.8
+      - source: docker.io/grafana/beyla-k8s-cache:2.5.8
+        target: <YOUR_REGISTRY>/observability/k-o11y-apm-agent-k8s-cache:2.5.8
+    changes:
+      - "Chart.yaml name changed to k-o11y-apm-agent"
+      - "Image registry changed to Harbor"
+      - "Image tag explicitly set to 2.5.8 (not chart appVersion 2.8.4)"
+
+  k-o11y-ksm:
+    upstream_chart: prometheus-community/kube-state-metrics
+    upstream_version: "6.3.0"
+    app_version: "2.17.0"
+    our_version: "26.1.1"
+    last_synced: "2025-01-20"
+    harbor_path: oci://<YOUR_REGISTRY>/charts/k-o11y-ksm
+    install_location: agent
+    images:
+      - source: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0
+        target: <YOUR_REGISTRY>/observability/k-o11y-kube-state-metrics:v2.17.0
+    changes:
+      - "Chart.yaml name changed to k-o11y-ksm"
+      - "Image registry changed to Harbor"
+
+  k-o11y-otel-operator:
+    upstream_chart: open-telemetry/opentelemetry-operator
+    upstream_version: "0.95.1"
+    app_version: "0.134.0"
+    our_version: "26.1.1"
+    last_synced: "2025-01-20"
+    harbor_path: oci://<YOUR_REGISTRY>/charts/k-o11y-otel-operator
+    install_location: agent
+    images:
+      # Already using private registry (mirroring completed)
+      - source: ghcr.io/open-telemetry/opentelemetry-operator/opentelemetry-operator:0.134.0
+        target: <YOUR_REGISTRY>/observability/k-o11y-otel-operator:0.134.0
+        status: completed
+      - source: quay.io/brancz/kube-rbac-proxy:v0.19.1
+        target: <YOUR_REGISTRY>/observability/k-o11y-kube-rbac-proxy:v0.19.1
+        status: completed
+      # Mirroring and values.yaml update completed (2025-01-20)
+      - source: busybox:latest
+        target: <YOUR_REGISTRY>/observability/k-o11y-busybox:latest
+        status: completed
+      - source: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.134.1
+        target: <YOUR_REGISTRY>/observability/opentelemetry-collector-k8s:0.134.1
+        status: completed
+        note: "default collectorImage, mirrored for air-gapped environments (2026-02-23)"
+    changes:
+      - "Chart.yaml name changed to k-o11y-otel-operator"
+      - "Image registry changed to Harbor"
+      - "collectorImage changed from ghcr.io to private registry (2026-02-23)"
+
+# ============================================
+# Autoinstrumentation Images (for OTel Operator)
+# ============================================
+# Images used by Instrumentation CRD (not rendered in Helm templates)
+autoinstrumentation_images:
+  last_synced: "2025-01-21"
+  note: "Used for per-language auto-instrumentation in OTel Operator Instrumentation CRD"
+  images:
+    - source: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:latest
+      target: <YOUR_REGISTRY>/observability/k-o11y-autoinstrumentation-java:latest
+      status: completed
+    - source: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-dotnet:latest
+      target: <YOUR_REGISTRY>/observability/k-o11y-autoinstrumentation-dotnet:latest
+      status: completed
+    - source: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:latest
+      target: <YOUR_REGISTRY>/observability/k-o11y-autoinstrumentation-python:latest
+      status: completed
+    - source: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:latest
+      target: <YOUR_REGISTRY>/observability/k-o11y-autoinstrumentation-nodejs:latest
+      status: completed
+    - source: docker.io/otel/autoinstrumentation-go:v0.18.0-alpha
+      target: <YOUR_REGISTRY>/observability/k-o11y-autoinstrumentation-go:v0.18.0-alpha
+      status: completed
+      note: "Go uses eBPF, provided from Docker Hub"
+
+# ============================================
+# cert-manager (local manifest)
+# ============================================
+cert_manager:
+  version: "v1.16.2"
+  source_url: "https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml"
+  local_path: "" # removed — install from official URL above
+  last_synced: "2026-02-23"
+  note: "For OTel Operator webhook certificate management, included locally for air-gapped support"
+  images:
+    - source: quay.io/jetstack/cert-manager-controller:v1.16.2
+      target: <YOUR_REGISTRY>/observability/cert-manager-controller:v1.16.2
+      status: completed
+      note: "Image references in manifest also updated (2026-02-23)"
+    - source: quay.io/jetstack/cert-manager-cainjector:v1.16.2
+      target: <YOUR_REGISTRY>/observability/cert-manager-cainjector:v1.16.2
+      status: completed
+    - source: quay.io/jetstack/cert-manager-webhook:v1.16.2
+      target: <YOUR_REGISTRY>/observability/cert-manager-webhook:v1.16.2
+      status: completed
+    - source: quay.io/jetstack/cert-manager-acmesolver:v1.16.2
+      target: <YOUR_REGISTRY>/observability/cert-manager-acmesolver:v1.16.2
+      status: completed
+      note: "ACME HTTP-01 solver, referenced via --acme-http01-solver-image arg"
+
+# ============================================
+# Summary (based on helm template verification)
+# ============================================
+# Total Charts: 5
+# - Host: 1 (k-o11y)
+# - Agent: 4 (k-o11y-otel-agent, k-o11y-apm-agent, k-o11y-ksm, k-o11y-otel-operator)
+#
+# Total Images: 28
+# - Chart rendered images: 19 (all mirrored, collectorImage + busybox added)
+# - Autoinstrumentation images: 5 (all mirrored)
+# - cert-manager images: 4 (all mirrored, manifest updated)
+#
+# Firewall requirement: <YOUR_REGISTRY>:443 (single endpoint)
+#
+# Excluded Images (not rendered or custom):
+# - docker.io/signoz/signoz:v0.93.0 → Custom SigNoz (<YOUR_REGISTRY>/observability/hub)
+# - signoz-otel-gateway, postgresql, redpanda → Disabled (not rendered in helm template)
+#
+# Last audit: 2026-02-23 (verified 0 external registry references)

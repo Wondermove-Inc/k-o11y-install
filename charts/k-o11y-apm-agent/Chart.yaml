@@ -1,0 +1,30 @@
+apiVersion: v2
+appVersion: 2.8.4
+description: K-O11y APM Agent - eBPF-based autoinstrumentation for HTTP, HTTP2 and gRPC services (based on Grafana Beyla)
+home: https://grafana.com/oss/beyla-ebpf/
+icon: https://grafana.com/static/img/logos/beyla-logo.svg
+keywords:
+- k-o11y
+- observability
+- autoinstrumentation
+- eBPF-based
+- beyla
+maintainers:
+- name: mariomac
+  url: https://github.com/mariomac
+- name: grcevski
+  url: https://github.com/grcevski
+- name: marctc
+  url: https://github.com/marctc
+- name: rafaelroquetto
+  url: https://github.com/rafaelroquetto
+- name: skl
+  url: https://github.com/skl
+name: k-o11y-apm-agent
+sources:
+- https://github.com/grafana/beyla
+type: application
+version: 26.2.1
+annotations:
+  upstream/chart: grafana/beyla
+  upstream/version: "1.10.4"

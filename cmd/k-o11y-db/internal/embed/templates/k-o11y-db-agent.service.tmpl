@@ -1,0 +1,19 @@
+[Unit]
+Description=K-O11y DB Agent
+After=clickhouse-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/k-o11y-db agent start \
+  --clickhouse-host localhost \
+  --clickhouse-password ${CH_PASSWORD} \
+  --encryption-key ${K_O11Y_ENCRYPTION_KEY} \
+  --poll-interval 30s
+EnvironmentFile=/etc/k-o11y-db-agent/agent.env
+EnvironmentFile=-/etc/clickhouse-server/s3.env
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

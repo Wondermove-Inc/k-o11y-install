@@ -1,0 +1,15 @@
+[Unit]
+Description=K-O11y OpenTelemetry Collector Agent
+After=network-online.target clickhouse-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/otelcol-contrib --config=/etc/otelcol-contrib/k-o11y-otel-agent.yaml
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

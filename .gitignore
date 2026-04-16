@@ -1,0 +1,48 @@
+# Claude Code
+.claude-state/
+.claude/
+
+# Build artifacts
+dist/
+bin/get-s3-creds
+*.deb
+
+# Helm 빌드 아티팩트
+*.tgz
+charts/**/charts/
+
+# 임시 파일
+*.tmp
+*.bak
+*.swp
+*~
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 시크릿 (절대 커밋 금지)
+*.env
+*.env.local
+.env.*
+secrets/
+credentials/
+*-secret.yaml
+*-secrets.yaml
+
+# 설치 스크립트 설정 파일 (비밀번호 포함)
+install/db/config.sh
+install/**/config.sh
+
+# 로그
+*.log
+logs/
+
+# 테스트 출력
+coverage/
+test-results/

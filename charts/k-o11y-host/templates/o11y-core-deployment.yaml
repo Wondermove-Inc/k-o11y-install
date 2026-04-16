@@ -1,0 +1,151 @@
+{{- if .Values.o11yCore.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: o11y-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "signoz.labels" . | nindent 4 }}
+spec:
+  minReadySeconds: 5
+  progressDeadlineSeconds: 600
+  replicas: {{ .Values.o11yCore.replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: o11y-core
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: o11y-core
+    spec:
+      {{- with .Values.o11yCore.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: o11y-core
+          image: "{{ .Values.o11yCore.image.registry }}/{{ .Values.o11yCore.image.repository }}:{{ .Values.o11yCore.image.tag }}"
+          imagePullPolicy: {{ .Values.o11yCore.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.o11yCore.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.o11yCore.resources | nindent 12 }}
+          env:
+            - name: APP_ENV
+              value: {{ .Values.o11yCore.env.appEnv | quote }}
+            - name: APP_PORT
+              value: {{ .Values.o11yCore.service.port | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.o11yCore.env.logLevel | quote }}
+            - name: LOG_FILE
+              value: {{ .Values.o11yCore.env.logFile | quote }}
+            - name: CLICKHOUSE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: clickhouse_host
+            - name: CLICKHOUSE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: clickhouse_port
+            - name: CLICKHOUSE_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: clickhouse_database
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: clickhouse_user
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: o11y-core-secret
+                  key: clickhouse_password
+            - name: CLICKHOUSE_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: clickhouse_timeout
+            - name: CLICKHOUSE_MAX_RETRIES
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: clickhouse_max_retries
+            - name: BATCH_SERVICEMAP_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: batch_servicemap_enabled
+            - name: BATCH_SERVICEMAP_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: batch_servicemap_interval
+            - name: BATCH_INSERT_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: batch_insert_timeout
+            - name: BATCH_SAFETY_BUFFER
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: batch_safety_buffer
+            - name: BATCH_MAX_WINDOW
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: batch_max_window
+            - name: USAGE_REPORTER_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: usage_reporter_enabled
+            - name: MGMT_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: mgmt_base_url
+            {{- if .Values.o11yCore.usageReporter.licenseKey }}
+            - name: MGMT_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: o11y-core-secret
+                  key: mgmt_license_key
+            {{- end }}
+            - name: MGMT_TENANT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: mgmt_tenant_id
+            - name: USAGE_REPORTER_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: usage_reporter_interval
+            - name: USAGE_REPORTER_HTTP_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: usage_reporter_http_timeout
+            - name: USAGE_REPORTER_MAX_RETRIES
+              valueFrom:
+                configMapKeyRef:
+                  name: o11y-core-config
+                  key: usage_reporter_max_retries
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/os: linux
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+{{- end }}

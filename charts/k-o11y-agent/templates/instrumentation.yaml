@@ -1,0 +1,77 @@
+{{- if .Values.instrumentation.enabled }}
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: {{ .Values.instrumentation.name | default "k-o11y-instrumentation" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "k-o11y-agent.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  exporter:
+    endpoint: {{ .Values.instrumentation.exporter.endpoint }}
+  propagators:
+    {{- toYaml .Values.instrumentation.propagators | nindent 4 }}
+  sampler:
+    type: {{ .Values.instrumentation.sampler.type }}
+    argument: {{ .Values.instrumentation.sampler.argument | quote }}
+
+  {{- if .Values.instrumentation.java.enabled }}
+  # Java auto-instrumentation (gRPC protocol)
+  java:
+    image: {{ .Values.instrumentation.java.image.registry }}/{{ .Values.instrumentation.java.image.repository }}:{{ .Values.instrumentation.java.image.tag }}
+    env:
+      {{- toYaml .Values.instrumentation.java.env | nindent 6 }}
+  {{- end }}
+
+  {{- if .Values.instrumentation.dotnet.enabled }}
+  # .NET auto-instrumentation (HTTP/Protobuf protocol, port 4318)
+  dotnet:
+    image: {{ .Values.instrumentation.dotnet.image.registry }}/{{ .Values.instrumentation.dotnet.image.repository }}:{{ .Values.instrumentation.dotnet.image.tag }}
+    env:
+      {{- range .Values.instrumentation.dotnet.env }}
+      {{- if and (eq .name "OTEL_EXPORTER_OTLP_ENDPOINT") (ne (default "" $.Values.global.hostEndpointHttp) "") }}
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: {{ $.Values.global.hostEndpointHttp | quote }}
+      {{- else }}
+      - name: {{ .name }}
+        value: {{ .value | quote }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.instrumentation.python.enabled }}
+  # Python auto-instrumentation (HTTP/Protobuf protocol, port 4318)
+  python:
+    image: {{ .Values.instrumentation.python.image.registry }}/{{ .Values.instrumentation.python.image.repository }}:{{ .Values.instrumentation.python.image.tag }}
+    env:
+      {{- range .Values.instrumentation.python.env }}
+      {{- if and (eq .name "OTEL_EXPORTER_OTLP_ENDPOINT") (ne (default "" $.Values.global.hostEndpointHttp) "") }}
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: {{ $.Values.global.hostEndpointHttp | quote }}
+      {{- else }}
+      - name: {{ .name }}
+        value: {{ .value | quote }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.instrumentation.nodejs.enabled }}
+  # Node.js auto-instrumentation (gRPC protocol)
+  nodejs:
+    image: {{ .Values.instrumentation.nodejs.image.registry }}/{{ .Values.instrumentation.nodejs.image.repository }}:{{ .Values.instrumentation.nodejs.image.tag }}
+    env:
+      {{- toYaml .Values.instrumentation.nodejs.env | nindent 6 }}
+  {{- end }}
+
+  {{- if .Values.instrumentation.go.enabled }}
+  # Go auto-instrumentation (eBPF-based)
+  go:
+    image: {{ .Values.instrumentation.go.image.registry }}/{{ .Values.instrumentation.go.image.repository }}:{{ .Values.instrumentation.go.image.tag }}
+    env:
+      {{- toYaml .Values.instrumentation.go.env | nindent 6 }}
+  {{- end }}
+{{- end }}

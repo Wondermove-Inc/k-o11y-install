@@ -1,0 +1,45 @@
+{{- if and .Values.otelCollector.licenseGuard.enabled (not .Values.o11yCore.enabled) }}
+  {{- fail "otelCollector.licenseGuard requires o11yCore.enabled=true (o11y-core-secret is needed)" }}
+{{- end }}
+{{- if and .Values.otelCollector.licenseGuard.enabled (not .Values.o11yCore.usageReporter.licenseKey) }}
+  {{- fail "otelCollector.licenseGuard requires o11yCore.usageReporter.licenseKey to be set" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "otelCollector.fullname" . }}
+  labels:
+    {{- include "otelCollector.labels" . | nindent 4 }}
+data:
+  otel-collector-config.yaml: |-
+    {{- $config := deepCopy .Values.otelCollector.config }}
+    {{- if .Values.otelCollector.tls.enabled }}
+      {{- $tlsBlock := dict "cert_file" (printf "%s/tls.crt" .Values.otelCollector.tls.path) "key_file" (printf "%s/tls.key" .Values.otelCollector.tls.path) }}
+      {{- if .Values.otelCollector.tls.ca }}
+        {{- $_ := set $tlsBlock "client_ca_file" (printf "%s/ca.crt" .Values.otelCollector.tls.path) }}
+      {{- end }}
+      {{- $grpc := get (get (get (get $config "receivers") "otlp") "protocols") "grpc" }}
+      {{- $_ := set $grpc "tls" $tlsBlock }}
+      {{- $http := get (get (get (get $config "receivers") "otlp") "protocols") "http" }}
+      {{- $_ := set $http "tls" $tlsBlock }}
+    {{- end }}
+    {{- if .Values.otelCollector.licenseGuard.enabled -}}
+      {{- $extensions := get $config "extensions" -}}
+      {{- $licenseGuardBlock := dict "license_key_env" "MGMT_LICENSE_KEY" "public_key_pem" .Values.otelCollector.licenseGuard.publicKeyPEM "fail_mode" .Values.otelCollector.licenseGuard.failMode "check_interval" .Values.otelCollector.licenseGuard.checkInterval "grace_period_days" (.Values.otelCollector.licenseGuard.gracePeriodDays | int) -}}
+      {{- $_ := set $extensions "license_guard" $licenseGuardBlock -}}
+      {{- $processors := get $config "processors" -}}
+      {{- $_ := set $processors "license_gate" (dict "extension_name" "license_guard") -}}
+      {{- $service := get $config "service" -}}
+      {{- $extList := get $service "extensions" -}}
+      {{- $_ := set $service "extensions" (append $extList "license_guard") -}}
+      {{- $pipelines := get $service "pipelines" -}}
+      {{- range $name, $pipeline := $pipelines -}}
+        {{- if not (hasPrefix "metrics/" $name) -}}
+          {{- $procs := get $pipeline "processors" -}}
+          {{- $_ := set $pipeline "processors" (prepend $procs "license_gate") -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end }}
+    {{- toYaml $config | nindent 4 }}
+  otel-collector-opamp-config.yaml: |-
+    server_endpoint: "ws://{{ include "signoz.fullname" . }}:4320/v1/opamp"

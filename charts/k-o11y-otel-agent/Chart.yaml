@@ -1,0 +1,28 @@
+apiVersion: v2
+appVersion: 0.139.0
+description: K-O11y OTel Agent - Helm chart for collecting metrics and logs in K8s (based on SigNoz k8s-infra)
+home: https://signoz.io
+icon: https://signoz.io/img/SigNozLogo-orange.svg
+keywords:
+- k-o11y
+- OpenTelemetry
+- SigNoz
+- apm
+- monitoring
+- logs
+maintainers:
+- email: hello@signoz.io
+  name: SigNoz
+  url: https://signoz.io
+- email: prashant@signoz.io
+  name: prashant-shahi
+  url: https://prashantshahi.dev
+name: k-o11y-otel-agent
+sources:
+- https://github.com/signoz/charts
+- https://github.com/open-telemetry/opentelemetry-collector-contrib
+type: application
+version: 26.2.1
+annotations:
+  upstream/chart: signoz/k8s-infra
+  upstream/version: "0.15.0"

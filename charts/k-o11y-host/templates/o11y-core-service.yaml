@@ -1,0 +1,17 @@
+{{- if .Values.o11yCore.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: o11y-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "signoz.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.o11yCore.service.type }}
+  selector:
+    app: o11y-core
+  ports:
+    - name: http
+      port: {{ .Values.o11yCore.service.port }}
+      targetPort: {{ .Values.o11yCore.service.port }}
+{{- end }}

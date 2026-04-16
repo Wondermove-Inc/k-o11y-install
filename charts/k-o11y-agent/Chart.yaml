@@ -1,0 +1,36 @@
+apiVersion: v2
+name: k-o11y-agent
+description: K-O11y Agent Stack - Umbrella chart for K8s cluster monitoring
+type: application
+version: 26.2.1
+appVersion: "26.2.1"
+keywords:
+- k-o11y
+- observability
+- opentelemetry
+- beyla
+- kube-state-metrics
+- monitoring
+maintainers:
+- name: Wondermove
+  email: support@example.com
+home: https://wondermove.net
+icon: https://wondermove.net/favicon.ico
+
+dependencies:
+- name: k-o11y-otel-agent
+  version: 26.2.1
+  repository: oci://<YOUR_REGISTRY>/charts
+  condition: otelAgent.enabled
+- name: k-o11y-apm-agent
+  version: 26.2.1
+  repository: oci://<YOUR_REGISTRY>/charts
+  condition: apmAgent.enabled
+- name: k-o11y-ksm
+  version: 26.2.1
+  repository: oci://<YOUR_REGISTRY>/charts
+  condition: ksm.enabled
+- name: k-o11y-otel-operator
+  version: 26.2.1
+  repository: oci://<YOUR_REGISTRY>/charts
+  condition: otelOperator.enabled

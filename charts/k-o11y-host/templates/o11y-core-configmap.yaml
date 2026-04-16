@@ -1,0 +1,27 @@
+{{- if .Values.o11yCore.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: o11y-core-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "signoz.labels" . | nindent 4 }}
+data:
+  clickhouse_host: {{ (default .Values.externalClickhouse.host .Values.o11yCore.clickhouse.host) | quote }}
+  clickhouse_port: {{ (default (toString .Values.externalClickhouse.tcpPort) .Values.o11yCore.clickhouse.port) | quote }}
+  clickhouse_database: {{ (default .Values.externalClickhouse.traceDatabase .Values.o11yCore.clickhouse.database) | quote }}
+  clickhouse_timeout: {{ .Values.o11yCore.clickhouse.timeout | quote }}
+  clickhouse_max_retries: {{ .Values.o11yCore.clickhouse.maxRetries | quote }}
+  clickhouse_user: {{ (default .Values.externalClickhouse.user .Values.o11yCore.clickhouse.user) | quote }}
+  batch_servicemap_enabled: {{ .Values.o11yCore.env.batchServicemapEnabled | quote }}
+  batch_servicemap_interval: {{ .Values.o11yCore.env.batchServicemapInterval | quote }}
+  batch_insert_timeout: {{ .Values.o11yCore.env.batchInsertTimeout | quote }}
+  batch_safety_buffer: {{ .Values.o11yCore.env.batchSafetyBuffer | quote }}
+  batch_max_window: {{ .Values.o11yCore.env.batchMaxWindow | quote }}
+  usage_reporter_enabled: {{ .Values.o11yCore.usageReporter.enabled | quote }}
+  mgmt_base_url: {{ .Values.o11yCore.usageReporter.mgmtBaseUrl | quote }}
+  mgmt_tenant_id: {{ .Values.o11yCore.usageReporter.tenantId | quote }}
+  usage_reporter_interval: {{ .Values.o11yCore.usageReporter.interval | quote }}
+  usage_reporter_http_timeout: {{ .Values.o11yCore.usageReporter.httpTimeout | quote }}
+  usage_reporter_max_retries: {{ .Values.o11yCore.usageReporter.maxRetries | quote }}
+{{- end }}

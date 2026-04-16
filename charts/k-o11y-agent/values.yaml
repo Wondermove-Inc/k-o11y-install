@@ -1,0 +1,819 @@
+# =============================================================================
+# K-O11y Agent - Umbrella Chart Values
+# =============================================================================
+# 이 파일은 4개 sub-chart의 통합 설정입니다.
+#
+# 필수 설정 (--set으로 전달):
+#   global.clusterName                                          - Kubernetes 클러스터 이름
+#   global.deploymentEnvironment                                - 배포 환경 (dev|staging|prod)
+#   k-o11y-otel-agent.otelCollectorEndpoint                     - Host OTLP gRPC 엔드포인트 (예: 192.168.1.100:4317)
+#   k-o11y-apm-agent.config.data.attributes.kubernetes.cluster_name - 클러스터 이름 (Beyla용)
+#   instrumentation.exporter.endpoint                           - Host OTLP gRPC 엔드포인트 (Instrumentation CRD용)
+#
+# .NET/Python 사용 시 추가 필수:
+#   global.hostEndpointHttp                                     - Host OTLP HTTP 엔드포인트 (예: http://192.168.1.100:4318)
+# =============================================================================
+
+# -- Global configuration (Helm이 모든 sub-chart에 자동 전파)
+global:
+  # -- Kubernetes 클러스터 이름 (필수)
+  clusterName: ""
+  # -- 배포 환경 (필수): dev | staging | prod
+  deploymentEnvironment: ""
+  # -- 클라우드 제공자: aws | azure | gcp | others
+  cloud: others
+  # -- Host 클러스터 OTLP HTTP 엔드포인트 (.NET/Python용, Instrumentation CRD에서 사용)
+  hostEndpointHttp: ""
+  # -- 컨테이너 이미지 레지스트리 (폐쇄망 환경용)
+  imageRegistry: "<YOUR_REGISTRY>"
+  # -- 이미지 프로젝트 경로
+  imageProject: "observability"
+  # -- OTLP 비보안 연결 사용 여부
+  otelInsecure: true
+  # -- 설치 네임스페이스
+  namespace: "k-o11y"
+
+# =============================================================================
+# Sub-chart 활성화/비활성화
+# =============================================================================
+
+# -- OTel Collector Agent 활성화 (DaemonSet + Deployment)
+otelAgent:
+  enabled: true
+
+# -- Beyla eBPF APM Agent 활성화 (DaemonSet)
+apmAgent:
+  enabled: true
+
+# -- Kube State Metrics 활성화 (Deployment)
+ksm:
+  enabled: true
+
+# -- OpenTelemetry Operator 활성화 (Deployment)
+otelOperator:
+  enabled: true
+
+# =============================================================================
+# k-o11y-otel-agent 설정
+# =============================================================================
+k-o11y-otel-agent:
+  fullnameOverride: "k-o11y"
+
+  otelCollectorEndpoint: ""  # global.hostEndpoint 값으로 --set 오버라이드
+  otelInsecure: true
+
+  presets:
+    otlpExporter:
+      enabled: true
+    hostMetrics:
+      enabled: true
+      collectionInterval: 60s
+      scrapers:
+        network:
+          exclude:
+            interfaces:
+              - "^veth.*$"
+              - "^docker.*$"
+              - "^br-.*$"
+              - "^flannel.*$"
+              - "^cali.*$"
+              - "^cbr.*$"
+              - "^cni.*$"
+              - "^tailscale.*$"
+              - "^lo$"
+            match_type: regexp
+    logsCollection:
+      enabled: true
+      blacklist:
+        enabled: false
+    kubeletMetrics:
+      enabled: true
+      collectionInterval: 60s
+      insecureSkipVerify: false
+      extraMetadataLabels:
+        - container.id
+        - k8s.volume.type
+      metricGroups:
+        - container
+        - pod
+        - node
+        - volume
+    kubernetesAttributes:
+      enabled: true
+      extractMetadatas:
+        - k8s.namespace.name
+        - k8s.deployment.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.replicaset.name
+        - k8s.cronjob.name
+        - k8s.job.name
+        - k8s.node.name
+        - k8s.node.uid
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.pod.start_time
+    clusterMetrics:
+      enabled: true
+      collectionInterval: 60s
+    k8sEvents:
+      enabled: true
+    resourceDetection:
+      enabled: true
+
+  otelAgent:
+    image:
+      registry: <YOUR_REGISTRY>
+      repository: observability/k-o11y-otel-collector-contrib
+      tag: 0.109.0.1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "150Mi"
+      limits:
+        cpu: "500m"
+        memory: "500Mi"
+    securityContext:
+      runAsUser: 0
+    serviceAccount:
+      name: otel-agent
+      create: true
+    clusterRole:
+      name: otel-agent
+      create: true
+    clusterRoleBinding:
+      name: otel-agent
+    config:
+      exporters:
+        otlp:
+          # endpoint는 preset (otlpExporter)이 ${env:OTEL_EXPORTER_OTLP_ENDPOINT}로 자동 설정
+          sending_queue:
+            enabled: false
+          retry_on_failure:
+            enabled: true
+            initial_interval: 2s
+            max_interval: 10s
+            max_elapsed_time: 60s
+          compression: gzip
+          timeout: 120s
+      receivers: {}
+      processors:
+        batch:
+          send_batch_size: 1000
+          send_batch_max_size: 2000
+          timeout: 200ms
+        metricstransform/network:
+          transforms:
+            - include: system.network.io
+              match_type: strict
+              action: insert
+              new_name: k8s.node.network.io
+            - include: system.network.errors
+              match_type: strict
+              action: insert
+              new_name: k8s.node.network.errors
+            - include: system.network.packets
+              match_type: strict
+              action: insert
+              new_name: k8s.node.network.packets
+            - include: system.network.dropped
+              match_type: strict
+              action: insert
+              new_name: k8s.node.network.dropped
+        resource/k8s_node:
+          attributes:
+            - action: insert
+              key: k8s.cluster.name
+              value: "${env:K8S_CLUSTER_NAME}"
+            - action: upsert
+              key: k8s.node.name
+              from_attribute: host.name
+        resource/service_name:
+          attributes:
+            - action: insert
+              key: service.name
+              from_attribute: k8s.deployment.name
+            - action: insert
+              key: service.name
+              from_attribute: k8s.daemonset.name
+            - action: insert
+              key: service.name
+              from_attribute: k8s.statefulset.name
+            - action: insert
+              key: service.name
+              from_attribute: k8s.job.name
+            - action: insert
+              key: service.name
+              from_attribute: k8s.cronjob.name
+            - action: insert
+              key: service.name
+              from_attribute: k8s.replicaset.name
+            - action: insert
+              key: service.name
+              from_attribute: k8s.pod.name
+            - action: insert
+              key: service.name
+              value: "unknown-service"
+        resource/drop_high_cardinality:
+          attributes:
+            - key: service.instance.id
+              action: delete
+            - key: k8s.pod.start_time
+              action: delete
+            - key: k8s.node.uid
+              action: delete
+        transform/severity_parser:
+          log_statements:
+            - context: log
+              statements:
+                # Step 1: parse level in json body - FATAL/CRITICAL
+                - set(severity_text, "FATAL") where severity_text == "" and IsMatch(body, "\"level\"\\s*:\\s*\"(fatal|FATAL|panic|PANIC|critical|CRITICAL)\"")
+                - set(severity_text, "FATAL") where severity_text == "" and IsMatch(body, "\"severity\"\\s*:\\s*\"(fatal|FATAL|panic|PANIC|critical|CRITICAL)\"")
+                - set(severity_text, "FATAL") where severity_text == "" and IsMatch(body, "\"logLevel\"\\s*:\\s*\"(fatal|FATAL|panic|PANIC|critical|CRITICAL)\"")
+                - set(severity_text, "FATAL") where severity_text == "" and IsMatch(body, "\"levelname\"\\s*:\\s*\"(FATAL|PANIC|CRITICAL)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)level=FATAL\\b")
+                # ERROR
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "\"level\"\\s*:\\s*\"(error|ERROR|err|ERR)\"")
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "\"severity\"\\s*:\\s*\"(error|ERROR|err|ERR)\"")
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "\"logLevel\"\\s*:\\s*\"(error|ERROR|err|ERR)\"")
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "\"levelname\"\\s*:\\s*\"(ERROR|ERR)\"")
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "(?i)level=ERROR\\b")
+                # WARN
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "\"level\"\\s*:\\s*\"(warn|WARN|warning|WARNING)\"")
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "\"severity\"\\s*:\\s*\"(warn|WARN|warning|WARNING)\"")
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "\"logLevel\"\\s*:\\s*\"(warn|WARN|warning|WARNING)\"")
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "\"levelname\"\\s*:\\s*\"(WARN|WARNING)\"")
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "(?i)level=WARN\\b")
+                # INFO
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "\"level\"\\s*:\\s*\"(info|INFO|information|INFORMATION)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "\"severity\"\\s*:\\s*\"(info|INFO|information|INFORMATION)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "\"logLevel\"\\s*:\\s*\"(info|INFO|information|INFORMATION)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "\"levelname\"\\s*:\\s*\"(INFO|INFORMATION)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)level=INFO\\b")
+                # DEBUG
+                - set(severity_text, "DEBUG") where severity_text == "" and IsMatch(body, "\"level\"\\s*:\\s*\"(debug|DEBUG|verbose|VERBOSE)\"")
+                - set(severity_text, "DEBUG") where severity_text == "" and IsMatch(body, "\"severity\"\\s*:\\s*\"(debug|DEBUG|verbose|VERBOSE)\"")
+                - set(severity_text, "DEBUG") where severity_text == "" and IsMatch(body, "\"logLevel\"\\s*:\\s*\"(debug|DEBUG|verbose|VERBOSE)\"")
+                - set(severity_text, "DEBUG") where severity_text == "" and IsMatch(body, "\"levelname\"\\s*:\\s*\"(DEBUG|VERBOSE)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)level=DEBUG\\b")
+                # TRACE
+                - set(severity_text, "TRACE") where severity_text == "" and IsMatch(body, "\"level\"\\s*:\\s*\"(trace|TRACE|finest|FINEST)\"")
+                - set(severity_text, "TRACE") where severity_text == "" and IsMatch(body, "\"severity\"\\s*:\\s*\"(trace|TRACE|finest|FINEST)\"")
+                - set(severity_text, "TRACE") where severity_text == "" and IsMatch(body, "\"logLevel\"\\s*:\\s*\"(trace|TRACE|finest|FINEST)\"")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)level=TRACE\\b")
+                # Kubernetes Events standardization
+                - set(severity_text, "INFO") where severity_text == "Normal"
+                - set(severity_number, 9) where severity_text == "INFO" and severity_number == 0
+                - set(severity_text, "WARN") where severity_text == "Warning"
+                - set(severity_number, 13) where severity_text == "WARN" and severity_number == 0
+                # JSON attributes extraction
+                - set(severity_text, attributes["level"]) where attributes["level"] != nil and severity_text == ""
+                - set(severity_text, attributes["severity"]) where attributes["severity"] != nil and severity_text == ""
+                - set(severity_text, attributes["logLevel"]) where attributes["logLevel"] != nil and severity_text == ""
+                - set(severity_text, attributes["log_level"]) where attributes["log_level"] != nil and severity_text == ""
+                # Body parse - Tier 1: System Failures
+                - set(severity_text, "FATAL") where severity_text == "" and IsMatch(body, "(?i)(^|\\s)(FATAL|PANIC|CRITICAL|EMERGENCY)(\\s|:|$)")
+                - set(severity_number, 21) where severity_text == "FATAL"
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "(?i)(^|\\s)ERROR(\\s|:|$)")
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "(?i)\\b(exception occurred|stack trace|null pointer|segmentation fault|out of memory)\\b")
+                - set(severity_number, 17) where severity_text == "ERROR"
+                # Tier 2: Operational Warnings
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "(?i)(^|\\s)(WARN|WARNING)(\\s|:|$)")
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "(?i)\\b(deprecated|timeout|retry|circuit breaker|rate limit exceeded)\\b")
+                - set(severity_number, 13) where severity_text == "WARN"
+                # Tier 3: Service Lifecycle
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)(^|\\s)INFO(\\s|:|$)")
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)\\b(started|stopped|ready|healthy|initialized|listening)\\b")
+                - set(severity_number, 9) where severity_text == "INFO"
+                # Debug/Trace
+                - set(severity_text, "DEBUG") where severity_text == "" and IsMatch(body, "(?i)(^|\\s)DEBUG(\\s|:|$)")
+                - set(severity_number, 5) where severity_text == "DEBUG"
+                - set(severity_text, "TRACE") where severity_text == "" and IsMatch(body, "(?i)(^|\\s)TRACE(\\s|:|$)")
+                - set(severity_number, 1) where severity_text == "TRACE"
+                # HTTP Access Log Classification - 2xx → INFO
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)\"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\s+[^\"]*\"\\s+(200|201|202|204|206)")
+                - set(severity_number, 9) where severity_text == "INFO" and severity_number == 0
+                # HTTP 4xx → WARN
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "(?i)\"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\s+[^\"]*\"\\s+(4[0-9][0-9])")
+                - set(severity_number, 13) where severity_text == "WARN" and severity_number == 0
+                # HTTP 5xx → ERROR
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "(?i)\"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\s+[^\"]*\"\\s+(5[0-9][0-9])")
+                - set(severity_number, 17) where severity_text == "ERROR" and severity_number == 0
+                # Alternative HTTP format (without quotes)
+                - set(severity_text, "INFO") where severity_text == "" and IsMatch(body, "(?i)\\b(GET|POST|PUT|DELETE|PATCH)\\s+[/\\w\\-\\?\\=\\&\\.]*\\s+(200|201|202|204)\\b")
+                - set(severity_number, 9) where severity_text == "INFO" and severity_number == 0
+                - set(severity_text, "WARN") where severity_text == "" and IsMatch(body, "(?i)\\b(GET|POST|PUT|DELETE|PATCH)\\s+[/\\w\\-\\?\\=\\&\\.]*\\s+(4[0-9][0-9])\\b")
+                - set(severity_number, 13) where severity_text == "WARN" and severity_number == 0
+                - set(severity_text, "ERROR") where severity_text == "" and IsMatch(body, "(?i)\\b(GET|POST|PUT|DELETE|PATCH)\\s+[/\\w\\-\\?\\=\\&\\.]*\\s+(5[0-9][0-9])\\b")
+                - set(severity_number, 17) where severity_text == "ERROR" and severity_number == 0
+                # Set severity_number from severity_text for structured logs
+                - set(severity_number, 21) where (severity_text == "FATAL" or severity_text == "fatal" or severity_text == "Fatal" or severity_text == "PANIC" or severity_text == "panic" or severity_text == "Panic" or severity_text == "CRITICAL" or severity_text == "critical" or severity_text == "Critical") and severity_number == 0
+                - set(severity_number, 17) where (severity_text == "ERROR" or severity_text == "error" or severity_text == "Error" or severity_text == "ERR" or severity_text == "err" or severity_text == "Err") and severity_number == 0
+                - set(severity_number, 13) where (severity_text == "WARN" or severity_text == "warn" or severity_text == "Warn" or severity_text == "WARNING" or severity_text == "warning" or severity_text == "Warning") and severity_number == 0
+                - set(severity_number, 9) where (severity_text == "INFO" or severity_text == "info" or severity_text == "Info" or severity_text == "INFORMATION" or severity_text == "information" or severity_text == "Information") and severity_number == 0
+                - set(severity_number, 5) where (severity_text == "DEBUG" or severity_text == "debug" or severity_text == "Debug") and severity_number == 0
+                - set(severity_number, 1) where (severity_text == "TRACE" or severity_text == "trace" or severity_text == "Trace") and severity_number == 0
+                # Final fallback
+                - set(severity_text, "UNSPECIFIED") where severity_text == "" and severity_number == 0
+        transform/copy_namespace_from_resource_to_attributes:
+          log_statements:
+            - context: log
+              statements:
+                - set(attributes["k8s.namespace.name"], resource.attributes["k8s.namespace.name"])
+        crd:
+          cache_ttl: 60s
+          cache_max_size: 10000
+          passthrough_on_error: true
+          custom_resources:
+          - group: argoproj.io
+            version: v1alpha1
+            kind: Rollout
+            label_prefix: k8s.rollout
+      service:
+        pipelines:
+          metrics:
+            processors:
+              - resource/deployenv
+              - resourcedetection
+              - k8sattributes
+              - crd
+              - metricstransform/network
+              - resource/k8s_node
+              - batch
+          logs:
+            processors:
+              - resource/deployenv
+              - resourcedetection
+              - k8sattributes
+              - crd
+              - resource/service_name
+              - transform/severity_parser
+              - transform/copy_namespace_from_resource_to_attributes
+              - resource/drop_high_cardinality
+              - batch
+          traces:
+            processors:
+              - resource/deployenv
+              - resourcedetection
+              - k8sattributes
+              - crd
+              - resource/drop_high_cardinality
+              - batch
+
+  otelDeployment:
+    image:
+      registry: <YOUR_REGISTRY>
+      repository: observability/k-o11y-otel-collector-contrib
+      tag: 0.109.0.1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "500Mi"
+      limits:
+        cpu: "500m"
+        memory: "500Mi"
+    config:
+      exporters:
+        otlp:
+          # endpoint는 preset (otlpExporter)이 ${env:OTEL_EXPORTER_OTLP_ENDPOINT}로 자동 설정
+          sending_queue:
+            enabled: false
+          retry_on_failure:
+            enabled: true
+            initial_interval: 2s
+            max_interval: 10s
+            max_elapsed_time: 60s
+          compression: gzip
+          timeout: 120s
+      receivers:
+        prometheus/ksm-service-mapping:
+          config:
+            scrape_configs:
+              - job_name: 'kube-state-metrics-all-endpoints'
+                scrape_interval: 60s
+                scrape_timeout: 10s
+                static_configs:
+                  - targets: ['k-o11y-ksm.k-o11y.svc.cluster.local:8080']
+                metric_relabel_configs:
+                  - source_labels: [__name__]
+                    action: keep
+                    regex: 'kube_endpoint_address|kube_service_info|kube_deployment_spec_replicas|kube_deployment_status_replicas_available|kube_statefulset_replicas|kube_statefulset_status_replicas|kube_daemonset_status_desired_number_scheduled|kube_daemonset_status_current_number_scheduled|kube_pod_info|kube_pod_owner|kube_replicaset_owner|kube_node_info'
+      processors:
+        batch:
+          send_batch_size: 1000
+          send_batch_max_size: 2000
+          timeout: 200ms
+        resource/ksm-mapping:
+          attributes:
+            - action: insert
+              key: k8s.cluster.name
+              value: "${env:K8S_CLUSTER_NAME}"
+        metricstransform/daemonset_namespace:
+          transforms:
+            - include: k8s.daemonset.desired_scheduled_nodes
+              match_type: strict
+              action: insert
+              new_name: k8s.daemonset.desired.scheduled.namespaces
+            - include: k8s.daemonset.current_scheduled_nodes
+              match_type: strict
+              action: insert
+              new_name: k8s.daemonset.current.scheduled.namespaces
+            - include: k8s.daemonset.ready_nodes
+              match_type: strict
+              action: insert
+              new_name: k8s.daemonset.ready.namespaces
+            - include: k8s.daemonset.misscheduled_nodes
+              match_type: strict
+              action: insert
+              new_name: k8s.daemonset.misscheduled.namespaces
+        filter/drop_scrape:
+          metrics:
+            exclude:
+              match_type: regexp
+              metric_names:
+                - ^scrape_.*
+                - ^up$
+        transform/k8s_events_severity:
+          log_statements:
+            - context: log
+              statements:
+                - set(severity_text, "INFO") where severity_text == "Normal"
+                - set(severity_number, 9) where severity_text == "INFO" and severity_number == 0
+                - set(severity_text, "WARN") where severity_text == "Warning"
+                - set(severity_number, 13) where severity_text == "WARN" and severity_number == 0
+                - set(severity_text, "UNSPECIFIED") where severity_text == "" and severity_number == 0
+      service:
+        pipelines:
+          metrics/internal:
+            processors:
+              - resource/deployenv
+              - k8sattributes
+              - resourcedetection
+              - metricstransform/daemonset_namespace
+              - filter/drop_scrape
+              - batch
+          metrics/ksm-service-mapping:
+            receivers:
+              - prometheus/ksm-service-mapping
+            processors:
+              - resource/ksm-mapping
+              - batch
+            exporters:
+              - otlp
+          logs:
+            processors:
+              - resource/deployenv
+              - k8sattributes
+              - resourcedetection
+              - transform/k8s_events_severity
+              - batch
+
+  # env 섹션은 서브차트의 snippet.otlp-env + snippet.k8s-env가 자동 생성
+  # K8S_CLUSTER_NAME, DEPLOYMENT_ENVIRONMENT, OTEL_EXPORTER_OTLP_ENDPOINT 등 포함
+
+# =============================================================================
+# k-o11y-apm-agent (Beyla) 설정
+# =============================================================================
+k-o11y-apm-agent:
+  image:
+    registry: "<YOUR_REGISTRY>"
+    repository: observability/k-o11y-apm-agent
+    tag: 2.5.8
+    pullPolicy: IfNotPresent
+
+  fullnameOverride: "k-o11y-apm-agent"
+
+  rbac:
+    create: true
+
+  serviceAccount:
+    create: true
+    automount: true
+
+  hostNetwork: true
+  privileged: true
+
+  securityContext:
+    privileged: true
+
+  service:
+    enabled: true
+    type: ClusterIP
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9090"
+      prometheus.io/path: "/metrics"
+    port: 80
+    targetPort: 9090
+    portName: metrics
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 300Mi
+    limits:
+      cpu: 500m
+      memory: 600Mi
+
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/master"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+
+  dnsPolicy: ClusterFirstWithHostNet
+
+  config:
+    create: true
+    data:
+      discovery:
+        services:
+          - k8s_namespace: ".*"
+            k8s_owner_name: ".*"
+      network:
+        enable: false
+      attributes:
+        kubernetes:
+          enable: true
+          cluster_name: ""  # --set으로 전달: k-o11y-apm-agent.config.data.attributes.kubernetes.cluster_name
+        http:
+          request_headers:
+            - X-Forwarded-For
+            - X-Real-IP
+            - Forwarded
+          response_headers: []
+      otel_traces_export:
+        endpoint: "http://k-o11y-otel-agent.k-o11y.svc.cluster.local:4317"
+        protocol: grpc
+        instrumentation:
+          - "*"
+      prometheus_export:
+        port: 9090
+        path: /metrics
+        features:
+          - application
+          - application_span
+
+  env:
+    BEYLA_HTTP_EXCLUDE_PATTERNS: "/healthz,/health,/readiness,/liveness,/metrics"
+
+  preset: application
+
+  k8sCache:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 100Mi
+    image:
+      registry: "<YOUR_REGISTRY>"
+      repository: observability/k-o11y-apm-agent-k8s-cache
+      tag: 2.5.8
+      pullPolicy: IfNotPresent
+    service:
+      name: k-o11y-apm-cache
+      port: 50055
+
+# =============================================================================
+# k-o11y-ksm (kube-state-metrics) 설정
+# =============================================================================
+k-o11y-ksm:
+  fullnameOverride: "k-o11y-ksm"
+  image:
+    registry: "<YOUR_REGISTRY>"
+    repository: observability/k-o11y-kube-state-metrics
+    tag: v2.17.0
+  resources:
+    requests:
+      cpu: 50m
+      memory: 500Mi
+    limits:
+      cpu: 200m
+      memory: 500Mi
+
+# =============================================================================
+# k-o11y-otel-operator 설정
+# =============================================================================
+k-o11y-otel-operator:
+  fullnameOverride: "k-o11y-otel-operator"
+  admissionWebhooks:
+    certManager:
+      enabled: true
+  manager:
+    image:
+      repository: "<YOUR_REGISTRY>/observability/k-o11y-otel-operator"
+      tag: "0.134.0"
+  kubeRBACProxy:
+    image:
+      repository: "<YOUR_REGISTRY>/observability/k-o11y-kube-rbac-proxy"
+      tag: "v0.19.1"
+
+# =============================================================================
+# Instrumentation CRD 설정 (OpenTelemetry auto-instrumentation)
+# =============================================================================
+# OTel Operator 설치 후 자동 계측을 위한 Instrumentation CR 생성
+#
+# 사용법: Deployment에 annotation 추가
+#   Java:   instrumentation.opentelemetry.io/inject-java=k-o11y-instrumentation
+#   .NET:   instrumentation.opentelemetry.io/inject-dotnet=k-o11y-instrumentation
+#   Python: instrumentation.opentelemetry.io/inject-python=k-o11y-instrumentation
+#   Node:   instrumentation.opentelemetry.io/inject-nodejs=k-o11y-instrumentation
+#   Go:     instrumentation.opentelemetry.io/inject-go=k-o11y-instrumentation
+# =============================================================================
+instrumentation:
+  # -- Instrumentation CRD 생성 여부 (otelOperator가 enabled일 때만 유효)
+  enabled: true
+  # -- Instrumentation CR 이름
+  name: "k-o11y-instrumentation"
+
+  exporter:
+    # -- OTLP gRPC 엔드포인트 (--set으로 전달)
+    endpoint: ""
+
+  propagators:
+    - tracecontext
+    - baggage
+
+  sampler:
+    # -- 샘플링 전략
+    type: parentbased_traceidratio
+    # -- 샘플링 비율 (0.1 = 10%)
+    argument: "0.1"
+
+  # ---------------------------------------------------------------------------
+  # Java auto-instrumentation (gRPC protocol, port 4317)
+  # ---------------------------------------------------------------------------
+  java:
+    enabled: true
+    image:
+      registry: "<YOUR_REGISTRY>"
+      repository: "observability/k-o11y-autoinstrumentation-java"
+      tag: "latest"
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp
+      # Java MDC 로깅 통합
+      - name: OTEL_JAVAAGENT_ENABLED_INSTRUMENTATIONS
+        value: "logback-mdc,log4j-mdc"
+      - name: OTEL_INSTRUMENTATION_LOGBACK_MDC_ADD_BAGGAGE
+        value: "true"
+      - name: OTEL_INSTRUMENTATION_COMMON_MDC_RESOURCE_ATTRIBUTES
+        value: "true"
+      - name: OTEL_INSTRUMENTATION_LOGBACK_APPENDER_EXPERIMENTAL_CAPTURE_MDC_ATTRIBUTES
+        value: "true"
+      # Java는 gRPC 프로토콜 사용
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "grpc"
+      - name: OTEL_EXPORTER_OTLP_LOGS_PROTOCOL
+        value: "grpc"
+      - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+        value: "grpc"
+      - name: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+        value: "grpc"
+
+  # ---------------------------------------------------------------------------
+  # .NET auto-instrumentation (HTTP/Protobuf protocol, port 4318)
+  # ---------------------------------------------------------------------------
+  dotnet:
+    enabled: true
+    image:
+      registry: "<YOUR_REGISTRY>"
+      repository: "observability/k-o11y-autoinstrumentation-dotnet"
+      tag: "latest"
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp
+      # .NET 로그 계측 활성화
+      - name: OTEL_DOTNET_AUTO_LOGS_INSTRUMENTATION_ENABLED
+        value: "true"
+      - name: OTEL_DOTNET_AUTO_LOGS_ILOGGER_INSTRUMENTATION_ENABLED
+        value: "true"
+      - name: OTEL_LOGS_INCLUDE_TRACE_CONTEXT
+        value: "true"
+      - name: OTEL_DOTNET_AUTO_LOGS_INCLUDE_FORMATTED_MESSAGE
+        value: "true"
+      - name: OTEL_DOTNET_AUTO_LOGS_PARSE_STATE_VALUES
+        value: "true"
+      # .NET은 HTTP/Protobuf 프로토콜 사용 (4318 포트)
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "http/protobuf"
+      - name: OTEL_EXPORTER_OTLP_LOGS_PROTOCOL
+        value: "http/protobuf"
+      - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+        value: "http/protobuf"
+      - name: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+        value: "http/protobuf"
+      # .NET 특별 엔드포인트 설정 (4318 포트, --set으로 전달)
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
+
+  # ---------------------------------------------------------------------------
+  # Python auto-instrumentation (HTTP/Protobuf protocol, port 4318)
+  # ---------------------------------------------------------------------------
+  python:
+    enabled: true
+    image:
+      registry: "<YOUR_REGISTRY>"
+      repository: "observability/k-o11y-autoinstrumentation-python"
+      tag: "latest"
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp
+      # Python 로그-트레이스 correlation 활성화
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
+        value: "true"
+      # Python 로그 포맷에 trace context 자동 포함
+      - name: OTEL_PYTHON_LOG_FORMAT
+        value: "%(asctime)s [%(levelname)s] trace_id=%(otelTraceID)s span_id=%(otelSpanID)s %(name)s: %(message)s"
+      - name: OTEL_PYTHON_LOG_LEVEL
+        value: "INFO"
+      # HTTP/Protobuf 프로토콜 사용
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "http/protobuf"
+      - name: OTEL_EXPORTER_OTLP_LOGS_PROTOCOL
+        value: "http/protobuf"
+      - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+        value: "http/protobuf"
+      - name: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+        value: "http/protobuf"
+      # Python 특별 엔드포인트 설정 (4318 포트, --set으로 전달)
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
+
+  # ---------------------------------------------------------------------------
+  # Node.js auto-instrumentation (gRPC protocol, port 4317)
+  # ---------------------------------------------------------------------------
+  nodejs:
+    enabled: true
+    image:
+      registry: "<YOUR_REGISTRY>"
+      repository: "observability/k-o11y-autoinstrumentation-nodejs"
+      tag: "latest"
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp
+      # Node.js 로그-트레이스 correlation 활성화
+      - name: OTEL_NODE_DISABLED_INSTRUMENTATIONS
+        value: ""
+      # Winston 로거에서 trace context 자동 주입 활성화
+      - name: OTEL_INSTRUMENTATION_WINSTON_ENABLED
+        value: "true"
+      - name: OTEL_INSTRUMENTATION_CONSOLE_ENABLED
+        value: "true"
+      # Node.js 로그에 trace context 포함 설정
+      - name: OTEL_LOGS_INCLUDE_TRACE_CONTEXT
+        value: "true"
+      # gRPC 프로토콜 사용
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "grpc"
+      - name: OTEL_EXPORTER_OTLP_LOGS_PROTOCOL
+        value: "grpc"
+      - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+        value: "grpc"
+      - name: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+        value: "grpc"
+
+  # ---------------------------------------------------------------------------
+  # Go auto-instrumentation (eBPF-based)
+  # ---------------------------------------------------------------------------
+  go:
+    enabled: true
+    image:
+      registry: "<YOUR_REGISTRY>"
+      repository: "observability/k-o11y-autoinstrumentation-go"
+      tag: "v0.18.0-alpha"
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp

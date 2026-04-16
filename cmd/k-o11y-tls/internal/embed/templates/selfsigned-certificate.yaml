@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-collector-cert
+  namespace: {{.Namespace}}
+spec:
+  secretName: {{.SecretName}}
+  duration: 8760h
+  renewBefore: 720h
+  dnsNames:
+    - {{.Domain}}
+  issuerRef:
+    name: otel-selfsigned-issuer
+    kind: Issuer

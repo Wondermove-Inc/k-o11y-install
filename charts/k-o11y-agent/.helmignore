@@ -1,0 +1,28 @@
+# Patterns to ignore when building packages.
+.DS_Store
+# Common VCS dirs
+.git/
+.gitignore
+.bzr/
+.bzrignore
+.hg/
+.hgignore
+.svn/
+# Common backup files
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+# Various IDEs
+.project
+.idea/
+*.tmproj
+.vscode/
+# Documentation
+README.md
+LICENSE
+CONTRIBUTING.md
+# Packaged charts in root (prevent recursive inclusion)
+# Only match root-level tgz, not charts/*.tgz (subchart dependencies)
+k-o11y-agent-*.tgz

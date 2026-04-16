@@ -1,0 +1,8 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: otel-private-ca-issuer
+  namespace: {{.Namespace}}
+spec:
+  ca:
+    secretName: otel-private-ca-keypair
