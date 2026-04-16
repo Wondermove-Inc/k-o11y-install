@@ -1,6 +1,6 @@
 # K-O11y Install
 
-[한국어](README.ko.md)
+[English](README.md) | [한국어](README.ko.md)
 
 Installation tools for [K-O11y](https://github.com/Wondermove-Inc/k-o11y-server) — a self-hosted Kubernetes observability platform.
 
