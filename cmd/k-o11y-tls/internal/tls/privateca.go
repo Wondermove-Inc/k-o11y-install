@@ -7,7 +7,7 @@ import (
 	"github.com/Wondermove-Inc/k-o11y-install/cmd/k-o11y-tls/internal/logger"
 )
 
-// SetupPrivateCA는 사내 CA 인증서로 cert-manager 인증서를 생성합니다.
+// SetupPrivateCA creates a cert-manager certificate using an internal CA.
 func SetupPrivateCA(cfg *Config) error {
 	if cfg.Domain == "" {
 		return fmt.Errorf("--domain은 private-ca 모드에서 필수입니다")
@@ -32,7 +32,7 @@ func SetupPrivateCA(cfg *Config) error {
 		return err
 	}
 
-	// CA 인증서를 K8s Secret으로 등록
+	// Register the CA certificate as a K8s Secret
 	caSecretName := "otel-private-ca-keypair"
 	logger.Info("사내 CA 인증서를 K8s Secret으로 등록 중...")
 	cfg.Kube.Kubectl("-n", cfg.Namespace, "delete", "secret", caSecretName)

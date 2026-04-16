@@ -9,14 +9,14 @@ import (
 	"github.com/Wondermove-Inc/k-o11y-install/cmd/k-o11y-tls/internal/logger"
 )
 
-// KubeRunner는 kubectl/helm 명령어를 os/exec로 실행하는 래퍼입니다.
+// KubeRunner wraps kubectl and helm execution via os/exec.
 type KubeRunner struct {
-	Context string // --kube-context 값 (비어있으면 기본 컨텍스트 사용)
+	Context string // --kube-context value (uses the default context when empty)
 	Verbose bool
 	DryRun  bool
 }
 
-// Kubectl은 kubectl 명령어를 실행합니다.
+// Kubectl runs a kubectl command.
 func (k *KubeRunner) Kubectl(args ...string) (string, error) {
 	if k.Context != "" {
 		args = append([]string{"--context", k.Context}, args...)
@@ -24,7 +24,7 @@ func (k *KubeRunner) Kubectl(args ...string) (string, error) {
 	return k.run("kubectl", args...)
 }
 
-// KubectlApplyStdin은 YAML을 stdin으로 전달하여 kubectl apply합니다.
+// KubectlApplyStdin applies YAML by passing it to kubectl via stdin.
 func (k *KubeRunner) KubectlApplyStdin(yaml string) error {
 	args := []string{"apply", "-f", "-"}
 	if k.Context != "" {
@@ -63,7 +63,7 @@ func (k *KubeRunner) KubectlApplyStdin(yaml string) error {
 	return nil
 }
 
-// Helm은 helm 명령어를 실행합니다.
+// Helm runs a helm command.
 func (k *KubeRunner) Helm(args ...string) (string, error) {
 	if k.Context != "" {
 		args = append([]string{"--kube-context", k.Context}, args...)
@@ -71,7 +71,7 @@ func (k *KubeRunner) Helm(args ...string) (string, error) {
 	return k.run("helm", args...)
 }
 
-// run은 명령어를 실행하고 stdout을 반환합니다.
+// run executes a command and returns stdout.
 func (k *KubeRunner) run(name string, args ...string) (string, error) {
 	if k.DryRun {
 		logger.Info("[DRY-RUN] %s %s", name, strings.Join(args, " "))
