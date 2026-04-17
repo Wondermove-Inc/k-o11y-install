@@ -4,10 +4,10 @@ import (
 	"github.com/Wondermove-Inc/k-o11y-install/cmd/k-o11y-tls/internal/logger"
 )
 
-// InstallCertManager는 cert-manager가 설치되어 있지 않으면 설치합니다.
-// CRD 존재 여부로 판단하므로 다른 네임스페이스에 설치된 경우도 감지합니다.
+// InstallCertManager installs cert-manager if it is not already present.
+// It checks for the CRD, so it also detects installations in other namespaces.
 func InstallCertManager(cfg *Config) error {
-	// CRD 존재 여부로 cert-manager 설치 확인 (네임스페이스 무관)
+	// Check whether cert-manager is installed by looking for the CRD
 	_, err := cfg.Kube.Kubectl("get", "crd", "certificates.cert-manager.io")
 	if err == nil {
 		logger.OK("cert-manager 이미 설치됨")
@@ -16,7 +16,7 @@ func InstallCertManager(cfg *Config) error {
 
 	logger.Info("cert-manager %s 설치 중...", cfg.CertManagerVersion)
 
-	// helm repo 추가
+	// Add the Helm repository
 	cfg.Kube.Helm("repo", "add", "jetstack", "https://charts.jetstack.io")
 	cfg.Kube.Helm("repo", "update", "jetstack")
 
@@ -33,7 +33,7 @@ func InstallCertManager(cfg *Config) error {
 
 	logger.OK("cert-manager 설치 완료")
 
-	// Pod Ready 대기
+	// Wait for the Pods to become Ready
 	logger.Info("cert-manager Pod 준비 대기 중...")
 	_, err = cfg.Kube.Kubectl("-n", "cert-manager", "wait",
 		"--for=condition=ready", "pod",

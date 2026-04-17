@@ -10,7 +10,7 @@ import (
 	"github.com/Wondermove-Inc/k-o11y-install/cmd/k-o11y-tls/internal/logger"
 )
 
-// Config는 TLS 설정에 필요한 모든 파라미터를 담습니다.
+// Config holds all parameters required for TLS setup.
 type Config struct {
 	Mode               string
 	Domain             string
@@ -27,7 +27,7 @@ type Config struct {
 	Kube               *kube.KubeRunner
 }
 
-// EnsureNamespace는 K8s 네임스페이스가 존재하는지 확인하고, 없으면 생성합니다.
+// EnsureNamespace checks whether the K8s namespace exists and creates it if needed.
 func EnsureNamespace(cfg *Config) error {
 	logger.Info("네임스페이스 확인: %s", cfg.Namespace)
 
@@ -43,7 +43,7 @@ func EnsureNamespace(cfg *Config) error {
 	return nil
 }
 
-// WaitForCertificate는 cert-manager Certificate가 Ready 상태가 될 때까지 대기합니다.
+// WaitForCertificate waits until the cert-manager Certificate becomes Ready.
 func WaitForCertificate(cfg *Config, certName, timeout string) error {
 	logger.Info("인증서 발급 대기 중...")
 
@@ -57,7 +57,7 @@ func WaitForCertificate(cfg *Config, certName, timeout string) error {
 	return nil
 }
 
-// RenderTemplate는 embed된 YAML 템플릿을 렌더링합니다.
+// RenderTemplate renders an embedded YAML template.
 func RenderTemplate(name string, data interface{}) (string, error) {
 	raw, err := embedpkg.ReadTemplate(name)
 	if err != nil {
@@ -77,7 +77,7 @@ func RenderTemplate(name string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-// ApplyTemplate는 YAML 템플릿을 렌더링하고 kubectl apply합니다.
+// ApplyTemplate renders a YAML template and applies it with kubectl.
 func ApplyTemplate(cfg *Config, templateName string, data interface{}) error {
 	yaml, err := RenderTemplate(templateName, data)
 	if err != nil {

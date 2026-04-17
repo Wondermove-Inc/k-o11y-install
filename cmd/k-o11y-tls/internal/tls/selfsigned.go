@@ -6,7 +6,7 @@ import (
 	"github.com/Wondermove-Inc/k-o11y-install/cmd/k-o11y-tls/internal/logger"
 )
 
-// SetupSelfsigned는 cert-manager로 self-signed 인증서를 생성합니다.
+// SetupSelfsigned creates a self-signed certificate with cert-manager.
 func SetupSelfsigned(cfg *Config) error {
 	if cfg.Domain == "" {
 		return fmt.Errorf("--domain은 selfsigned 모드에서 필수입니다")

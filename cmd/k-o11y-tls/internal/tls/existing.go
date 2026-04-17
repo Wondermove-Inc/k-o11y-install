@@ -8,9 +8,9 @@ import (
 	"github.com/Wondermove-Inc/k-o11y-install/cmd/k-o11y-tls/internal/logger"
 )
 
-// SetupExisting은 고객이 직접 준비한 인증서로 K8s Secret을 생성합니다.
+// SetupExisting creates a K8s Secret from a customer-provided certificate.
 func SetupExisting(cfg *Config) error {
-	// 검증
+	// Validate inputs
 	if cfg.CertFile == "" {
 		return fmt.Errorf("--cert는 existing 모드에서 필수입니다")
 	}
@@ -30,17 +30,17 @@ func SetupExisting(cfg *Config) error {
 
 	logger.Info("고객 인증서로 Secret 생성: %s", cfg.SecretName)
 
-	// 기존 Secret 삭제 (있으면)
+	// Delete the existing Secret if it exists
 	cfg.Kube.Kubectl("-n", cfg.Namespace, "delete", "secret", cfg.SecretName)
 
-	// TLS Secret 생성
+	// Create the TLS Secret
 	_, err := cfg.Kube.Kubectl("-n", cfg.Namespace, "create", "secret", "tls", cfg.SecretName,
 		"--cert="+cfg.CertFile, "--key="+cfg.KeyFile)
 	if err != nil {
 		return fmt.Errorf("Secret 생성 실패: %w", err)
 	}
 
-	// CA 인증서 추가 (선택)
+	// Add the CA certificate if provided
 	if cfg.CAFile != "" {
 		if _, err := os.Stat(cfg.CAFile); os.IsNotExist(err) {
 			return fmt.Errorf("CA 인증서 파일을 찾을 수 없습니다: %s", cfg.CAFile)

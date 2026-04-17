@@ -50,7 +50,7 @@ var setupCmd = &cobra.Command{
 			return fmt.Errorf("--mode는 필수입니다 (existing, selfsigned, private-ca, letsencrypt)")
 		}
 
-		// 배너 출력
+		// Print banner
 		fmt.Println()
 		fmt.Println("============================================")
 		fmt.Println("  OTel Collector TLS 인증서 설정")
@@ -111,7 +111,7 @@ var setupCmd = &cobra.Command{
 			return err
 		}
 
-		// 다음 단계 안내
+		// Show next steps
 		printNextSteps(mode)
 		return nil
 	},
