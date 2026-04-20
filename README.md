@@ -420,12 +420,12 @@ This project follows **passive maintenance** — we aim to respond within 7 days
 
 - 🐛 **Bug reports & feature requests**: [GitHub Issues](https://github.com/Wondermove-Inc/k-o11y-install/issues)
 - 💭 **Questions & discussions**: Open an issue in the [umbrella repo](https://github.com/Wondermove-Inc/k-o11y/issues)
-- 🌐 **Website**: [wondermove.net](https://wondermove.net)
+- 🌐 **Website**: [www.skuberplus.com](https://www.skuberplus.com)
 
 ---
 
 <div align="center">
 
-**Built and maintained by [Wondermove](https://wondermove.net)**
+**Built and maintained by [Wondermove](https://www.skuberplus.com)**
 
 </div>
