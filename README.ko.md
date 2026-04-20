@@ -13,7 +13,7 @@
 [![Helm](https://img.shields.io/badge/Helm-3.12%2B-0F1689?logo=helm&logoColor=white)](https://helm.sh/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28%2B-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 
-[SigNoz](https://signoz.io/) · [OpenTelemetry](https://opentelemetry.io/) · [Beyla eBPF](https://grafana.com/oss/beyla-ebpf/) · [ClickHouse](https://clickhouse.com/) 기반
+[OpenTelemetry](https://opentelemetry.io/) · [Beyla eBPF](https://grafana.com/oss/beyla-ebpf/) · [ClickHouse](https://clickhouse.com/) 기반
 
 </div>
 
@@ -99,7 +99,7 @@ flowchart LR
 ```
 k-o11y-install/
 ├── charts/                               # Helm 차트
-│   ├── k-o11y-host/                      # Host umbrella (SigNoz + OTel Gateway)
+│   ├── k-o11y-host/                      # Host umbrella (백엔드 + OTel Gateway)
 │   ├── k-o11y-agent/                     # Agent umbrella
 │   ├── k-o11y-otel-agent/                # OTel Collector (sub-chart)
 │   ├── k-o11y-otel-operator/             # OTel Operator (sub-chart)
@@ -306,7 +306,7 @@ helm upgrade --install k-o11y-agent \
 
 | 차트 | 버전 | 설명 |
 |------|------|------|
-| `k-o11y-host` | 26.2.1 | Host umbrella (SigNoz + OTel Gateway) |
+| `k-o11y-host` | 26.2.1 | Host umbrella (백엔드 + OTel Gateway) |
 | `k-o11y-agent` | 26.2.1 | Agent umbrella |
 | `k-o11y-otel-agent` | 26.2.1 | OTel Collector (DaemonSet + Deployment) |
 | `k-o11y-otel-operator` | 26.2.1 | OTel Operator |
@@ -391,7 +391,7 @@ CH VM 컴포넌트(DB 에이전트, OTel Agent, DDL)를 업그레이드합니다
 | 저장소 | 설명 |
 |-------|------|
 | 🌐 **[k-o11y](https://github.com/Wondermove-Inc/k-o11y)** | Umbrella 저장소 (개요, 아키텍처, 로드맵) |
-| 🧠 **[k-o11y-server](https://github.com/Wondermove-Inc/k-o11y-server)** | SigNoz 포크 + ServiceMap Core API |
+| 🧠 **[k-o11y-server](https://github.com/Wondermove-Inc/k-o11y-server)** | 관측성 백엔드 + ServiceMap Core API |
 | 📡 **[k-o11y-otel-collector](https://github.com/Wondermove-Inc/k-o11y-otel-collector)** | CRD 라벨 보강 OTel Collector |
 | 🛂 **[k-o11y-otel-gateway](https://github.com/Wondermove-Inc/k-o11y-otel-gateway)** | License Guard 탑재 OTel Gateway |
 
@@ -427,7 +427,5 @@ CH VM 컴포넌트(DB 에이전트, OTel Agent, DDL)를 업그레이드합니다
 <div align="center">
 
 **[Wondermove](https://wondermove.net)가 개발 및 관리합니다**
-
-[SigNoz](https://signoz.io)와 [OpenTelemetry](https://opentelemetry.io) 커뮤니티의 훌륭한 작업에 기반합니다.
 
 </div>
