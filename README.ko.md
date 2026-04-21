@@ -6,7 +6,7 @@
 
 **K-O11y 스택 전체를 배포하기 위한 Helm 차트와 Go CLI 도구.**
 
-[English](README.md) | [한국어](README.ko.md)
+[English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
 
 [![Project Status: WIP](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
